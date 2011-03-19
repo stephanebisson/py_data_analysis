@@ -13,6 +13,7 @@ import os
 import operator
 import glob
 import time
+import shutil
 
 
 def delete_file_ignore_error(file_name):
@@ -20,6 +21,65 @@ def delete_file_ignore_error(file_name):
         os.remove(file_name)
     except:
         pass
+
+def manage_expectations(file_produced_by_this_step):
+    pass
+    # expected = file_produced_by_this_step + '.expected'
+    # actual = file_produced_by_this_step
+    # 
+    # # create temp file without the background column
+    # with open(file_produced_by_this_step, 'r') as f:
+    #     lines = f.readlines()
+    # 
+    # headers = lines[0].strip().split('\t')
+    # if 'BACKGROUND' in headers:
+    #     print "Have to remove the background column"
+    #     background_index = 999999
+    #     for i, h in enumerate(headers):
+    #         if h == 'BACKGROUND':
+    #             print "The background is at index ", i
+    #             background_index = i
+    #             del headers[background_index]
+    #             break
+    #     actual += '.without_background'
+    #     with open(actual, 'w') as out:
+    #         out.write('\t'.join(headers) + '\n')
+    #         for line in lines[1:]:
+    #             line_items = line.strip().split('\t')
+    #             del line_items[background_index]
+    #             out.write('\t'.join(line_items) + '\n')
+    # 
+    # print "diff %s %s" % (expected, actual)
+    # result = os.system("diff -w --suppress-common-lines %s %s > diff.txt" % (expected, actual))
+    # if result == 0:
+    #     print "OK"
+    # else:
+    #     print "NO"
+    #     os.system('mate diff.txt')
+    #     exit(1)
+
+
+def remove_bakground_column(inputfilename, outputfilename):
+    # create temp file without the background column
+    with open(inputfilename, 'r') as f:
+        lines = f.readlines()
+    
+    headers = lines[0].strip().split('\t')
+    if 'BACKGROUND' in headers:
+        background_index = 999999
+        for i, h in enumerate(headers):
+            if h == 'BACKGROUND':
+                print "The background is at index ", i
+                background_index = i
+                del headers[background_index]
+                break
+
+        with open(outputfilename, 'w') as out:
+            out.write('\t'.join(headers) + '\n')
+            for line in lines[1:]:
+                line_items = line.strip().split('\t')
+                del line_items[background_index]
+                out.write('\t'.join(line_items) + '\n')
 
 # ---------------- discard Function -------------------------------
 def discardPractice(fullFilename,outFilename, pColumn):
@@ -39,11 +99,17 @@ def discardPractice(fullFilename,outFilename, pColumn):
     out = open(outFilename, "w")
     for line in data2:
         out.write(line)
-        
+    out.close()
     print "Discarded all practice lines: "+fullFilename + " --> " + outFilename
+    manage_expectations(outFilename)
 
 # ---------------- sort Function -------------------------------
 def sortExcel(inFilename, outFilename):
+
+    SAMPLE_INDEX = 3
+    SET = 16
+    CONDITION = 17
+    NAMEDPICTURE_WORD = 24
 
     # Open the unsorted file
     fResults = open(inFilename+".xls", 'r')
@@ -63,17 +129,17 @@ def sortExcel(inFilename, outFilename):
 
     # Convert some of the fields to int for sorting
     for line in data2:
-        line[3] = int(line[3])
-        line[15] = int(line[15])
+        line[SAMPLE_INDEX] = int(line[SAMPLE_INDEX])
+        line[SET] = int(line[SET])
 
     # Sort the data according to set (15), condition (16),
     # Target/Control(23) and sample_id (3)
-    data2 = sorted(data2, key=operator.itemgetter(15,16,23,3))
+    data2 = sorted(data2, key=operator.itemgetter(SET,CONDITION,NAMEDPICTURE_WORD,SAMPLE_INDEX))
 
     # Convert back to text
     for line in data2:
-        line[3] = "%d"%line[3]
-        line[15] = "%d"%line[15]
+        line[SAMPLE_INDEX] = "%d"%line[SAMPLE_INDEX]
+        line[SET] = "%d"%line[SET]
 
     # Write the sorted data to file
     for line in data2:
@@ -84,6 +150,7 @@ def sortExcel(inFilename, outFilename):
     # Close the sorted file
     out.close()
     print "Created the sorted file: "  +outFilename+".xls"
+    manage_expectations(outFilename+".xls")
 
 # ---------------- Convert function -------------------------------
 def convert(edfFilename):
@@ -202,9 +269,9 @@ def analyse(dataFilename, audioFilename, ansFilename, discardWrong, reactionTime
                 out.write("In_Saccade\t")                
             elif (i==IA_COLUMN):
                 if (SUM_OVER == 1):
-                    out.write("IA\tTarget\tFR_DIS\tENG_DIS\tTAR_CTRL\tFR_CTRL\tENG_CTRL\tR/W\tAns\tAns_latency\t")
+                    out.write("IA\tTarget\tFR_DIS\tENG_DIS\tTAR_CTRL\tFR_CTRL\tENG_CTRL\tBACKGROUND\tR/W\tAns\tAns_latency\t")
                 else:
-                    out.write("SUMMED_OVER\tTarget\tFR_DIS\tENG_DIS\tTAR_CTRL\tFR_CTRL\tENG_CTRL\tR/W\tAns\tAns_latency\t")
+                    out.write("SUMMED_OVER\tTarget\tFR_DIS\tENG_DIS\tTAR_CTRL\tFR_CTRL\tENG_CTRL\tBACKGROUND\tR/W\tAns\tAns_latency\t")
             else:
                 out.write(splitResults[i]+"\t")
                 if (i>=CONDITION-1): # -1 to include the set column
@@ -222,7 +289,7 @@ def analyse(dataFilename, audioFilename, ansFilename, discardWrong, reactionTime
     nRight = 0
     lastLine = ""
     lastLine2 = ""
-    tData = [0,0,0,0,0,0]
+    tData = [0,0,0,0,0,0,0]
     summed = 0 # Number of lines summed in this bin
 
     # ------------------ For each line ---------------------------
@@ -266,7 +333,7 @@ def analyse(dataFilename, audioFilename, ansFilename, discardWrong, reactionTime
                     out.write(lastLine)
                     
             # Reset the values used for summing            
-            tData = [0,0,0,0,0,0]
+            tData = [0,0,0,0,0,0,0]
             summed = 0 # Number of lines summed in this bin
             
             
@@ -339,7 +406,7 @@ def analyse(dataFilename, audioFilename, ansFilename, discardWrong, reactionTime
                                     tData[4] += 1
                                 if (splitResults[ENG_CTRL].split(".")[0]==splitResults[IMAGE_A].split(".")[0]):                        
                                     tData[5] += 1          
-                if(splitResults[IA_COLUMN]=="B"):            
+                elif(splitResults[IA_COLUMN]=="B"):            
                     if (splitResults[RIGHT_IN_SACCADE]=="No" and (discardWrong==0 or (discardWrong==1 and correct=="R"))):
                         for j in range(0,len(CONDITIONS)):
                             if (CONDITIONS[j] == splitResults[CONDITION]):                                
@@ -355,7 +422,7 @@ def analyse(dataFilename, audioFilename, ansFilename, discardWrong, reactionTime
                                     tData[4] += 1
                                 if (splitResults[ENG_CTRL].split(".")[0]==splitResults[IMAGE_B].split(".")[0]):                        
                                     tData[5] += 1         
-                if(splitResults[IA_COLUMN]=="C"):
+                elif(splitResults[IA_COLUMN]=="C"):
                     if (splitResults[RIGHT_IN_SACCADE]=="No" and (discardWrong==0 or (discardWrong==1 and correct=="R"))):
                         for j in range(0,len(CONDITIONS)):
                             if (CONDITIONS[j] == splitResults[CONDITION]):      
@@ -371,7 +438,7 @@ def analyse(dataFilename, audioFilename, ansFilename, discardWrong, reactionTime
                                     tData[4] += 1
                                 if (splitResults[ENG_CTRL].split(".")[0]==splitResults[IMAGE_C].split(".")[0]):                        
                                     tData[5] += 1
-                if(splitResults[IA_COLUMN]=="D"):
+                elif(splitResults[IA_COLUMN]=="D"):
                     if (splitResults[RIGHT_IN_SACCADE]=="No" and (discardWrong==0 or (discardWrong==1 and correct=="R"))):
                         for j in range(0,len(CONDITIONS)):
                             if (CONDITIONS[j] == splitResults[CONDITION]):                                                           
@@ -387,6 +454,10 @@ def analyse(dataFilename, audioFilename, ansFilename, discardWrong, reactionTime
                                     tData[4] += 1
                                 if (splitResults[ENG_CTRL].split(".")[0]==splitResults[IMAGE_D].split(".")[0]):                        
                                     tData[5] += 1
+                                
+                else:
+                    if (splitResults[RIGHT_IN_SACCADE]=="No" and (discardWrong==0 or (discardWrong==1 and correct=="R"))):
+                        tData[6] += 1
                         
             # Go through one item at a time
             for i in range(len(splitResults)):                                
@@ -402,7 +473,7 @@ def analyse(dataFilename, audioFilename, ansFilename, discardWrong, reactionTime
                         lastLine2 += splitResults[i]+"\n"
                         summed = 0
                         # Target FR_DIS ENG_DIS TAR_CTRL FR_CTRL ENG_CTRL
-                        tData = [0,0,0,0,0,0]                        
+                        tData = [0,0,0,0,0,0,0]                        
                     if (i==TIMING):
                         if (summed == 1):
                             out.write("%f\t"%(time))
@@ -419,17 +490,17 @@ def analyse(dataFilename, audioFilename, ansFilename, discardWrong, reactionTime
                         if (summed == SUM_OVER):
                             lastLine2 = ""
                             if (SUM_OVER == 1):
-                                out.write("%d\t%d\t%d\t%d\t%d\t%d\t"%(tData[0],tData[1],tData[2],tData[3],tData[4],tData[5]))
-                                lastLine2 += "%d\t%d\t%d\t%d\t%d\t%d\t"%(tData[0],tData[1],tData[2],tData[3],tData[4],tData[5])
+                                out.write("%d\t%d\t%d\t%d\t%d\t%d\t%d\t"%(tData[0],tData[1],tData[2],tData[3],tData[4],tData[5],tData[6]))
+                                lastLine2 += "%d\t%d\t%d\t%d\t%d\t%d\t%d\t"%(tData[0],tData[1],tData[2],tData[3],tData[4],tData[5],tData[6])
                             else:
-                                out.write("%d\t%d\t%d\t%d\t%d\t%d\t%d\t"%(summed, tData[0],tData[1],tData[2],tData[3],tData[4],tData[5]))
-                                lastLine2 += "%d\t%d\t%d\t%d\t%d\t%d\t%d\t"%(summed,tData[0],tData[1],tData[2],tData[3],tData[4],tData[5])
+                                out.write("%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t"%(summed, tData[0],tData[1],tData[2],tData[3],tData[4],tData[5],tData[6]))
+                                lastLine2 += "%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t"%(summed,tData[0],tData[1],tData[2],tData[3],tData[4],tData[5],tData[6])
                             out.write(correct+"\t"+givenAns+"\t"+ansLatency+"\t")
                             lastLine2 += correct+"\t"+givenAns+"\t"+ansLatency+"\t"
                             summed = SUM_OVER+1 
                         if (summed == SUM_OVER+1):
                             out.write(splitResults[i]+"\t")
-                            lastLine2 += splitResults[i]+"\t"           
+                            lastLine2 += splitResults[i]+"\t"
 
     
     # Pad the last trial in the file
@@ -450,12 +521,16 @@ def analyse(dataFilename, audioFilename, ansFilename, discardWrong, reactionTime
 
     out.close()
     print("Created the output file: "+filename+"_output.xls")
+    manage_expectations(filename+"_output.xls")
+    
     if (reactionTimeAnalysis==1):
         outReaction.close()
         print("Created the reaction time file: "+filename+"_reaction.xls")
+        manage_expectations(filename+"_reaction.xls")
 
     # Print the right wrong report
     out2.write(splitResults[0]+"\t%d\t%d\t%d\n"%(nRight,nWrong,(nRight+nWrong)))
+    out2.close()
     print("Appended to the RW report: RW_report.xls")
 
 
@@ -550,14 +625,15 @@ def noSubstract(inFilename, outFilename, split):
     out =open(outFilename, "w")
 
     # Print the header
-    headers = [0,1,2,4,5,6,7,8,9,10,11,15,16,17,18,19,20,22,23,24,32,33,34,35,36,37,38,39,41]
+    # headers = [0,1,2,4,5,6,7,8,9,10,11,15,16,17,18,19,20,22,23,24,32,33,34,35,36,37,38,39,41]
+    headers = [0,1,2,4,5,6,7,8,9,10,11,12,16,17,18,19,20,21,23,24,25,33,34,35,36,37,38,39,40,42]
     headerLine = data[0].replace("\n","").split("\t")
     for h in headers:
         out.write(headerLine[h]+"\t")
     out.write("\n")
 
-    CONDITION = 16
-    NAMEDPICTURE_NATURE = 23
+    CONDITION = 17
+    NAMEDPICTURE_NATURE = 24
 
     for i in range(1, len(data)):
         splitResults = data[i].replace("\n","").split("\t")
@@ -573,6 +649,7 @@ def noSubstract(inFilename, outFilename, split):
     # Close the output file
     out.close()
     print "Did not substract the data but reordered the columns: " +inFilename+ " --> " + outFilename
+    manage_expectations(outFilename)
     
 # ---------------- Prepare for Averaging Function -------------------------------
 def prepareForAveraging(inFilename, outFilename):
@@ -582,10 +659,10 @@ def prepareForAveraging(inFilename, outFilename):
     fResults.close()
     
     # Open the output file
-    out =open(outFilename, "w")
+    out = open(outFilename, "w")
 
     # Print the header
-    headers = [1,2,3,4,5,6,7,8,9,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28]
+    headers = [1,2,3,4,5,6,7,8,9,10,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29]
     headerLine = data[0].split("\t")
     out.write("AVERAGED_OVER\t")
     for h in headers:
@@ -593,15 +670,15 @@ def prepareForAveraging(inFilename, outFilename):
     out.write("\n")
 
     # Print the data
-    RW = 10
     for i in range(1,len(data)):
         splitResults = data[i].replace("\n","").split("\t")
         out.write(splitResults[0])
-        for j in [1,2,3,4,5,6,7,8,9,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28]:
+        for j in headers:
             out.write("\t" + splitResults[j])
         out.write("\n")
-    print "Ready for merge: "+inFilename+ " --> "+outFilename
-
+    out.close()
+    print "Ready for merge: " + inFilename + " --> " + outFilename
+    manage_expectations(outFilename)
 
 # ---------------- Discard Trials with Wrong Answers Function ------------------------------
 def removeWrongAnswers(inFilename, reactionFile, outFilename):
@@ -642,9 +719,9 @@ def removeWrongAnswers(inFilename, reactionFile, outFilename):
     out = open(outFilename, "w")
     for line in data2:
         out.write(line)
-        
+    out.close()
     print "Discarded all Trials with Incorrect Answers: "+inFilename + " --> " + outFilename
-
+    manage_expectations(outFilename)
     return discardList
 
 
@@ -656,8 +733,8 @@ def discardNoFixation(inFilename, outFilename):
     TRIAL_ID = 1
     TARGET_COL = 4
     TAR_CTRL_COL = 7
-    CONDITION_COL = 11
-    NAMEPICTURE_NATURE_COL = 17
+    CONDITION_COL = 12
+    NAMEPICTURE_NATURE_COL = 18
     discardThisTrial = False
     discardList = []
 
@@ -707,15 +784,16 @@ def discardNoFixation(inFilename, outFilename):
     out = open(outFilename, "w")
     for line in data2:
         out.write(line)
-        
+    out.close()
     print "Discarded all Trials with No Fixations: "+inFilename + " --> " + outFilename
+    manage_expectations(outFilename)
     return discardList
 
 # ---------------- Discard Trials  with Low Answer Latency Function ------------------------------
 def discardLowLatencyAnswer(inFilename, reactionFile, outFilename, latencyTh):
     TRIAL_LABEL_COL = 1
     ANS_LATENCY_COL = 3
-    CONDITION_COL = 11
+    CONDITION_COL = 12
     discardList = []
 
 
@@ -752,8 +830,9 @@ def discardLowLatencyAnswer(inFilename, reactionFile, outFilename, latencyTh):
     out = open(outFilename, "w")
     for line in data2:
         out.write(line)
-        
+    out.close()
     print "Discarded all Trials with Low Latency Answers: "+inFilename + " --> " + outFilename
+    manage_expectations(outFilename)
     return discardList
 
 # ---------------- Discard Trials with Prefixaiton Function ------------------------------
@@ -765,8 +844,8 @@ def discardPreFixtion(inFilename, outFilename, timeRange, rangeSize, colSel, ali
     FRDis_COL = 5
     ENGDis_COL = 6
     TAR_CTRL_COL = 7
-    CONDITION_COL = 11
-    NAMEPICTURE_NATURE_COL = 17
+    CONDITION_COL = 12
+    NAMEPICTURE_NATURE_COL = 18
     
     discardThisTrial = False
     controlFlag = False
@@ -894,8 +973,9 @@ def discardPreFixtion(inFilename, outFilename, timeRange, rangeSize, colSel, ali
     out = open(outFilename, "w")
     for line in data2:
         out.write(line)
-
+    out.close()
     print "Discarded all Trials with Prefixations: "+inFilename + " --> " + outFilename
+    manage_expectations(outFilename)
     return discardList
 
 # ---------------- Compute the total number of trials in the input file ------------------------------
@@ -1053,11 +1133,43 @@ def discardedLogGenerator(name, outFilename, wrongList, nofixList, lowList, pref
     out.close()
     print "Log file of discarded trials was generated:" + " --> " + outFilename
 
+def getCurrentFixation(line_elements):
+    current_fix = 0
+    for fix_index in [4,5,6,7,8,9,10]:
+        if line_elements[fix_index] == '1':
+            return fix_index
+    return 0
+            
+
+def expandFixations(inputFile, outputFile):
+    with open(inputFile, 'r') as inFile:
+        lines = []
+        for line in inFile.readlines():
+            lines.append(line.strip().split('\t'))
+    
+    i = len(lines) - 1
+    last_fix = 0
+    while i > 0:
+        line = lines[i]
+        current_fix = getCurrentFixation(line)
+        if current_fix == 0:
+            if last_fix != 0:
+                line[last_fix] = '1'
+        else:
+            last_fix = current_fix
+        i -= 1
+    
+    with open(outputFile, 'w') as outFile:
+        for elements in lines:
+            outFile.write('\t'.join(elements) + '\n')
+            
+    manage_expectations(inputFile)
+
 # ---------------- Cleanup Function -------------------------------
 def cleanup(filename):
     delete_file_ignore_error(filename+"_audio.msg")
     delete_file_ignore_error(filename+"_answers.msg")
-    delete_file_ignore_error(filename+".asc")
+    # delete_file_ignore_error(filename+".asc")
     delete_file_ignore_error(filename+"_removedP.xls")
     delete_file_ignore_error(filename+"_removedP_output.xls")
     delete_file_ignore_error(filename+"_removedP_output_sorted.xls")
@@ -1240,6 +1352,10 @@ if (batchMode == 1):
             currentOutputFileName = currentOutputFileName + "Prefix"
 
         discardedLogGenerator(name, logFileName, WrongAnswersList, NoFixationList, LowLatencyAnswerList, PrefixationList, latencyThreshold, totalTrialNumber, optionsList)
+        
+        expandFixations(currentOutputFileName + '.xls', currentOutputFileName + "_expanded.xls")
+        remove_bakground_column(currentOutputFileName + "_expanded.xls", currentOutputFileName + '.xls')
+        
         cleanup(name)
 
         
@@ -1302,8 +1418,8 @@ else:
     createMessageFiles(name+".asc")
     analyse(name+"_removedP.xls", name+"_audio.msg", name+"_answers.msg", discardWrong, reactionTimeAnalysis, downSampling, timeBins, alignedFlag)
     sortExcel(name+"_removedP_output",name+"_removedP_output_sorted")
-
-
+    
+    
     if (isSubstract == 0):
         noSubstract(name+"_removedP_output_sorted.xls", name+"_notSubstractedData.xls", split)
         prepareForAveraging(name+"_notSubstractedData.xls",name+"_readyForAvg_noS.xls")
@@ -1314,7 +1430,7 @@ else:
         prepareForAveraging(name+"_substractedData.xls",name+"_readyForAvg.xls")
         currentInputFileName = name+"_readyForAvg"
         currentOutputFileName = name+"_readyForAvg_"
-
+    
     totalTrialNumber = computeTotaltrials(currentInputFileName + ".xls")
     
     if (iswrongRemoved == 1):
@@ -1328,22 +1444,24 @@ else:
         delete_file_ignore_error(currentInputFileName + ".xls")
         currentInputFileName = currentOutputFileName + "Fix"
         currentOutputFileName = currentOutputFileName + "Fix"
-
+    
     if (lowAnswerLatency == 1):
         LowLatencyAnswerList = discardLowLatencyAnswer(currentInputFileName + ".xls", name+"_removedP_reaction.xls", currentOutputFileName + "LAT.xls", latencyThreshold)
         delete_file_ignore_error(currentInputFileName + ".xls")
         currentInputFileName = currentOutputFileName + "LAT"
         currentOutputFileName = currentOutputFileName + "LAT"
-
+    
     if (preFixationRemoval == 1):
         PrefixationList = discardPreFixtion(currentInputFileName + ".xls", currentOutputFileName + "Prefix.xls", timeRange, rangeSize, SelectedColumns, alignedFlag)
         print PrefixationList
         delete_file_ignore_error(currentInputFileName + ".xls")
         currentInputFileName = currentOutputFileName + "Prefix"
         currentOutputFileName = currentOutputFileName + "Prefix"
-
-
+    
+    
     discardedLogGenerator(name, logFileName, WrongAnswersList, NoFixationList, LowLatencyAnswerList, PrefixationList, latencyThreshold, totalTrialNumber, optionsList)
 
+    expandFixations(currentOutputFileName + '.xls', currentOutputFileName + "_expanded.xls")
+    remove_bakground_column(currentOutputFileName + "_expanded.xls", currentOutputFileName + '.xls')
     cleanup(name)
 raw_input("Press a key to exit.")
