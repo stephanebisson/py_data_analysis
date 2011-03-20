@@ -155,7 +155,8 @@ def sortExcel(inFilename, outFilename):
 # ---------------- Convert function -------------------------------
 def convert(edfFilename):
     # run the converter
-    os.system("./edf2asc "+edfFilename)
+    edf2asc = os.path.join('.', 'edf2asc')
+    os.system(edf2asc + " " + edfFilename)
     filename = edfFilename.split(".")[0] 
     print("Created asc file: "+filename+".edf --> "+filename+".asc")
 
